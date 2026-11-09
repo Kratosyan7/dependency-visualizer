@@ -10,7 +10,9 @@ import sys
 from pathlib import Path
 
 from config import ConfigError, Settings, load_settings
-from maven import MavenError, Repository, split_name
+from graph import Graph, bfs, format_graph
+from maven import MavenError, Repository, Resolver, split_name
+from testrepo import TestRepositoryError, load_repository
 
 DESCRIPTION = "Визуализатор графа зависимостей пакетов Maven"
 DEFAULT_CONFIG = Path("config/default.ini")
@@ -39,33 +41,50 @@ def report_problems(title: str, problems: list[str]) -> None:
         print(f"  - {problem}", file=sys.stderr)
 
 
-def show_direct_dependencies(settings: Settings) -> None:
-    """Печатает прямые зависимости пакета из репозитория Maven."""
-    package = split_name(settings.package, settings.version)
-    repository = Repository(settings.repository)
-    dependencies = repository.direct_dependencies(package)
-    print(f"Прямые зависимости {package}: {len(dependencies)}")
-    for item in dependencies:
-        flags = item.scope + (", optional" if item.optional else "")
-        print(f"  {item.coordinates} ({flags})")
+def build_test_graph(settings: Settings) -> Graph:
+    """Строит граф по файлу тестового репозитория."""
+    packages = load_repository(Path(settings.repository))
+    known = set(packages).union(*packages.values())
+    if settings.package not in known:
+        raise TestRepositoryError(
+            f"пакет {settings.package} не описан в {settings.repository}"
+        )
+    return bfs(settings.package, lambda name: packages.get(name, []))
+
+
+def build_maven_graph(settings: Settings) -> Graph:
+    """Строит граф по репозиторию Maven.
+
+    POM исходного пакета загружается заранее: если его нет, работа
+    прерывается, а ошибки остальных пакетов попадают в Graph.errors.
+    """
+    root = split_name(settings.package, settings.version)
+    resolver = Resolver(Repository(settings.repository), root)
+    resolver.repository.effective(root)
+    return bfs(str(root), resolver.neighbours)
+
+
+def build_graph(settings: Settings) -> Graph:
+    """Строит граф зависимостей из источника, заданного настройками."""
+    if settings.test_mode:
+        return build_test_graph(settings)
+    return build_maven_graph(settings)
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Читает конфигурацию и выводит прямые зависимости пакета."""
+    """Читает конфигурацию, строит и выводит граф зависимостей."""
     args = build_parser().parse_args(argv)
     try:
         settings = load_settings(args.config)
     except ConfigError as error:
         report_problems(f"конфигурация {args.config}", error.problems)
         return EXIT_CONFIG
-    if settings.test_mode:
-        report_problems("тестовый режим", ["будет поддержан на этапе 3"])
-        return EXIT_CONFIG
     try:
-        show_direct_dependencies(settings)
-    except MavenError as error:
+        graph = build_graph(settings)
+    except (MavenError, TestRepositoryError) as error:
         report_problems("получение зависимостей", [str(error)])
         return EXIT_DATA
+    print("\n".join(format_graph(graph)))
     return EXIT_OK
 
 

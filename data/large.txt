@@ -1,0 +1,16 @@
+# Большой граф с двумя независимыми циклами и пакетами без описания.
+# Пакеты X и Y упоминаются только как зависимости.
+APP: CORE WEB CLI
+CORE: UTIL LOG
+WEB: CORE HTTP JSON
+CLI: CORE ARGS
+HTTP: NET LOG
+NET: UTIL HTTP
+JSON: UTIL
+UTIL: LOG
+LOG: FMT
+FMT: LOG
+ARGS: X Y
+# Пакеты, не достижимые из APP
+TOOLS: APP
+DEBUG: TOOLS

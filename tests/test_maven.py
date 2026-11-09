@@ -4,13 +4,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from graph import bfs
 from maven import (
     Coordinates,
     MavenError,
     Repository,
+    Resolver,
     fetch_bytes,
     interpolate,
     normalize_version,
+    parse_coordinates,
     parse_pom,
     split_name,
 )
@@ -221,6 +224,80 @@ class TestFetch(unittest.TestCase):
         """Отсутствующий локальный файл — MavenError."""
         with self.assertRaises(MavenError):
             fetch_bytes("file:///nonexistent/dir/file.pom")
+
+
+class TestResolver(unittest.TestCase):
+    """Выбор рёбер графа для обхода репозитория Maven."""
+
+    def graph_of(self, files: dict[str, bytes], root: str) -> dict:
+        """Строит граф и возвращает списки смежности."""
+        coordinates = parse_coordinates(root)
+        resolver = Resolver(FakeRepository(files), coordinates)
+        return bfs(root, resolver.neighbours).edges
+
+    def test_scopes_and_optional(self) -> None:
+        """Test-зависимости и транзитивные optional не учитываются."""
+        files = {
+            "g:a:1": pom("g:a:1", "<dependencies>"
+                         + dep("g:b:1", "<optional>true</optional>")
+                         + dep("g:t:1", "<scope>test</scope>")
+                         + "</dependencies>"),
+            "g:b:1": pom("g:b:1", "<dependencies>"
+                         + dep("g:c:1", "<optional>true</optional>")
+                         + dep("g:r:1", "<scope>runtime</scope>")
+                         + "</dependencies>"),
+            "g:r:1": pom("g:r:1"),
+        }
+        edges = self.graph_of(files, "g:a:1")
+        self.assertEqual(edges["g:a:1"], ["g:b:1"])
+        self.assertEqual(edges["g:b:1"], ["g:r:1"])
+
+    def test_nearest_version_wins(self) -> None:
+        """Версия, найденная ближе к корню, используется везде."""
+        files = {
+            "g:a:1": pom("g:a:1", "<dependencies>" + dep("g:b:1")
+                         + dep("g:c:2") + "</dependencies>"),
+            "g:b:1": pom("g:b:1", "<dependencies>" + dep("g:c:1")
+                         + "</dependencies>"),
+            "g:c:2": pom("g:c:2"),
+        }
+        edges = self.graph_of(files, "g:a:1")
+        self.assertEqual(edges["g:b:1"], ["g:c:2"])
+        self.assertNotIn("g:c:1", edges)
+
+    def test_root_management_applies(self) -> None:
+        """DependencyManagement корня задаёт транзитивные версии."""
+        managed = ("<dependencyManagement><dependencies>" + dep("g:c:5")
+                   + "</dependencies></dependencyManagement>")
+        files = {
+            "g:a:1": pom("g:a:1", managed + "<dependencies>" + dep("g:b:1")
+                         + "</dependencies>"),
+            "g:b:1": pom("g:b:1", "<dependencies>" + dep("g:c:1")
+                         + "</dependencies>"),
+            "g:c:5": pom("g:c:5"),
+        }
+        edges = self.graph_of(files, "g:a:1")
+        self.assertEqual(edges["g:b:1"], ["g:c:5"])
+
+    def test_cycle_in_maven(self) -> None:
+        """Циклические зависимости POM обходятся без зацикливания."""
+        files = {
+            "g:a:1": pom("g:a:1", "<dependencies>" + dep("g:b:1")
+                         + "</dependencies>"),
+            "g:b:1": pom("g:b:1", "<dependencies>" + dep("g:a:1")
+                         + "</dependencies>"),
+        }
+        edges = self.graph_of(files, "g:a:1")
+        self.assertEqual(edges["g:b:1"], ["g:a:1"])
+
+    def test_missing_transitive_pom(self) -> None:
+        """Отсутствующий POM зависимости попадает в ошибки графа."""
+        files = {"g:a:1": pom("g:a:1", "<dependencies>" + dep("g:x:1")
+                              + "</dependencies>")}
+        resolver = Resolver(FakeRepository(files),
+                            parse_coordinates("g:a:1"))
+        graph = bfs("g:a:1", resolver.neighbours)
+        self.assertIn("g:x:1", graph.errors)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from xml.etree import ElementTree
 
+from graph import SourceError
+
 TIMEOUT = 30
 USER_AGENT = "dependency-visualizer/1.0 (study project)"
 MAX_INTERPOLATION_PASSES = 10
@@ -23,9 +25,10 @@ DEFAULT_SCOPE = "compile"
 IMPORT_SCOPE = "import"
 RANGE_START = "[("
 RANGE_END = "])"
+CLASSPATH_SCOPES = ("compile", "runtime")
 
 
-class MavenError(Exception):
+class MavenError(SourceError):
     """Ошибка получения или разбора POM."""
 
 
@@ -343,3 +346,59 @@ class Repository:
         return [
             apply_management(item, pom.managed) for item in pom.dependencies
         ]
+
+
+def parse_coordinates(name: str) -> Coordinates:
+    """Разбирает полное имя узла графа groupId:artifactId:version."""
+    group, artifact, version = name.split(":")
+    return Coordinates(group, artifact, version)
+
+
+def is_inherited(dependency: Dependency, transitive: bool) -> bool:
+    """Попадает ли зависимость в граф времени выполнения.
+
+    Учитываются scope compile и runtime; необязательные (optional)
+    зависимости учитываются только у исходного пакета, как в Maven.
+    """
+    if dependency.scope not in CLASSPATH_SCOPES:
+        return False
+    return not (transitive and dependency.optional)
+
+
+class Resolver:
+    """Источник рёбер графа для обхода BFS по репозиторию Maven.
+
+    Версия каждого пакета выбирается по правилу Maven «ближайший
+    побеждает»: BFS встречает пакеты в порядке глубины, поэтому первая
+    увиденная версия groupId:artifactId закрепляется за ним. Для
+    транзитивных зависимостей действует dependencyManagement исходного
+    пакета.
+    """
+
+    def __init__(self, repository: Repository, root: Coordinates) -> None:
+        """Запоминает репозиторий и исходный пакет."""
+        self.repository = repository
+        self.root = root
+        self.chosen: dict[str, str] = {root.key: root.version}
+
+    def pick_version(self, dependency: Dependency, transitive: bool) -> str:
+        """Выбирает версию зависимости с учётом уже выбранных."""
+        if dependency.key not in self.chosen:
+            version = dependency.version
+            if transitive:
+                managed = self.repository.effective(self.root).managed
+                rule = managed.get(dependency.key)
+                version = rule.version if rule else version
+            self.chosen[dependency.key] = version
+        return self.chosen[dependency.key]
+
+    def neighbours(self, name: str) -> list[str]:
+        """Прямые зависимости узла графа в виде полных имён."""
+        coordinates = parse_coordinates(name)
+        transitive = coordinates != self.root
+        result = []
+        for item in self.repository.direct_dependencies(coordinates):
+            if is_inherited(item, transitive):
+                version = self.pick_version(item, transitive)
+                result.append(f"{item.key}:{version}")
+        return list(dict.fromkeys(result))

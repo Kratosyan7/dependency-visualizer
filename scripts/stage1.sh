@@ -3,7 +3,7 @@
 set -u
 cd "$(dirname "$0")/.."
 
-for config in config/default.ini config/test_basic.ini \
+for config in config/default.ini config/test/basic.ini \
         config/нет_такого.ini config/errors/*.ini; do
     echo "=== $config ==="
     ./run.sh run "$config" || echo "код возврата: $?"
