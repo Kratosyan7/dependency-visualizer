@@ -1,0 +1,8 @@
+com.squareup.okhttp3:okhttp:jar:4.12.0
++- com.squareup.okio:okio:jar:3.6.0:compile
+|  \- com.squareup.okio:okio-jvm:jar:3.6.0:compile
+|     \- org.jetbrains.kotlin:kotlin-stdlib-common:jar:1.9.10:compile
+\- org.jetbrains.kotlin:kotlin-stdlib-jdk8:jar:1.8.21:compile
+   +- org.jetbrains.kotlin:kotlin-stdlib:jar:1.8.21:compile
+   |  \- org.jetbrains:annotations:jar:13.0:compile
+   \- org.jetbrains.kotlin:kotlin-stdlib-jdk7:jar:1.8.21:compile

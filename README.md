@@ -316,11 +316,45 @@ com.squareup.okhttp3:okhttp:4.12.0
 mvn org.apache.maven.plugins:maven-dependency-plugin:3.6.1:tree -Dscope=runtime
 ```
 
-и сохраняет вывод в `docs/mvn/<artifactId>.txt`. Состав пакетов и
-выбранные версии должны совпадать, потому что инструмент реализует те
-же правила Maven: наследование POM, свойства, `dependencyManagement` и
-импорт BOM, транзитивность `compile` и `runtime`, `optional` только у
-корня, «ближайший побеждает».
+и сохраняет вывод в `docs/mvn/<artifactId>.txt`. Сравнение выполнено
+с Apache Maven 3.9.9 и maven-dependency-plugin 3.6.1: **для всех трёх
+пакетов состав пакетов и выбранные версии совпадают** с результатом
+инструмента (`docs/mvn/jackson-databind.txt`, `spring-context.txt`,
+`okhttp.txt`). Это ожидаемо: инструмент реализует те же правила Maven —
+наследование POM, свойства, `dependencyManagement` и импорт BOM,
+транзитивность `compile` и `runtime`, `optional` только у корня,
+«ближайший побеждает».
+
+Вывод Maven для okhttp (ср. ASCII-дерево выше):
+
+```text
+com.squareup.okhttp3:okhttp:jar:4.12.0
++- com.squareup.okio:okio:jar:3.6.0:compile
+|  \- com.squareup.okio:okio-jvm:jar:3.6.0:compile
+|     \- org.jetbrains.kotlin:kotlin-stdlib-common:jar:1.9.10:compile
+\- org.jetbrains.kotlin:kotlin-stdlib-jdk8:jar:1.8.21:compile
+   +- org.jetbrains.kotlin:kotlin-stdlib:jar:1.8.21:compile
+   |  \- org.jetbrains:annotations:jar:13.0:compile
+   \- org.jetbrains.kotlin:kotlin-stdlib-jdk7:jar:1.8.21:compile
+```
+
+С ключом `-Dverbose` Maven показывает и отброшенные вхождения
+(`docs/mvn/okhttp-verbose.txt`) — именно они в выводе инструмента
+помечены `(*)`:
+
+```text
+com.squareup.okhttp3:okhttp:jar:4.12.0
++- com.squareup.okio:okio:jar:3.6.0:compile
+|  \- com.squareup.okio:okio-jvm:jar:3.6.0:compile
+|     +- (org.jetbrains.kotlin:kotlin-stdlib-jdk8:jar:1.9.10:compile - omitted for conflict with 1.8.21)
+|     \- org.jetbrains.kotlin:kotlin-stdlib-common:jar:1.9.10:compile
+\- org.jetbrains.kotlin:kotlin-stdlib-jdk8:jar:1.8.21:compile (scope not updated to compile)
+   +- org.jetbrains.kotlin:kotlin-stdlib:jar:1.8.21:compile
+   |  +- (org.jetbrains.kotlin:kotlin-stdlib-common:jar:1.8.21:compile - omitted for conflict with 1.9.10)
+   |  \- org.jetbrains:annotations:jar:13.0:compile
+   \- org.jetbrains.kotlin:kotlin-stdlib-jdk7:jar:1.8.21:compile
+      \- (org.jetbrains.kotlin:kotlin-stdlib:jar:1.8.21:compile - omitted for duplicate)
+```
 
 Расхождения в представлении и их причины:
 

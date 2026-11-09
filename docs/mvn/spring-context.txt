@@ -1,0 +1,8 @@
+org.springframework:spring-context:jar:6.1.0
++- org.springframework:spring-aop:jar:6.1.0:compile
++- org.springframework:spring-beans:jar:6.1.0:compile
++- org.springframework:spring-core:jar:6.1.0:compile
+|  \- org.springframework:spring-jcl:jar:6.1.0:compile
++- org.springframework:spring-expression:jar:6.1.0:compile
+\- io.micrometer:micrometer-observation:jar:1.12.0:compile
+   \- io.micrometer:micrometer-commons:jar:1.12.0:compile
