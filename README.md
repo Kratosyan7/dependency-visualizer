@@ -64,3 +64,48 @@ ascii_tree = true                 ; вывод зависимостей ASCII-д
 
 Демонстрация: `sh scripts/stage1.sh` — корректные конфигурации и все
 файлы из `config/errors/`.
+
+## Сбор данных из репозитория Maven (этап 2)
+
+Менеджеры пакетов и сторонние библиотеки не используются. Модуль
+`src/maven.py` скачивает файлы POM через `urllib` по стандартной
+раскладке репозитория:
+
+```
+<url>/<groupId с / вместо .>/<artifactId>/<version>/<artifactId>-<version>.pom
+```
+
+и разбирает их `xml.etree.ElementTree`. Для заданной версии пакета
+строится «эффективный» POM:
+
+- цепочка родительских POM (`<parent>`) обходится циклом снизу вверх;
+- свойства `<properties>` родителей переопределяются потомками,
+  доступны встроенные `${project.version}`, `${project.groupId}`,
+  `${project.parent.version}` и т. п.; подстановка многоуровневая;
+- версии и `scope` без явного значения берутся из
+  `<dependencyManagement>` (с учётом родителей и импорта BOM —
+  `<scope>import</scope>`);
+- зависимости, объявленные в родительском POM, наследуются;
+- из диапазона версий `[1.0,2.0)` берётся включённая нижняя граница,
+  `[1.2]` — точная версия.
+
+URL может иметь схему `https`, `http` или `file` (локальный каталог в
+раскладке Maven, например `file:///home/user/.m2/repository`).
+
+Ошибки сети, HTTP 404 (нет пакета или версии), некорректный XML,
+неопределимая версия зависимости выводятся в stderr, код возврата 3.
+
+Пример (`sh run.sh run config/maven/httpclient.ini`):
+
+```
+Прямые зависимости org.apache.httpcomponents:httpclient:4.5.14: 5
+  org.apache.httpcomponents:httpcore:4.4.16 (compile)
+  commons-logging:commons-logging:1.2 (compile)
+  commons-codec:commons-codec:1.11 (compile)
+  junit:junit:4.11 (test)
+  org.mockito:mockito-core:1.10.19 (test)
+```
+
+Демонстрация: `sh scripts/stage2.sh` — пакеты jackson-databind
+(BOM и родительские POM), guava, spring-context, httpclient и ошибки
+`config/errors/maven_*.ini` (нет пакета, нет версии, нет хоста).

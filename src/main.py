@@ -9,12 +9,14 @@ import argparse
 import sys
 from pathlib import Path
 
-from config import ConfigError, load_settings
+from config import ConfigError, Settings, load_settings
+from maven import MavenError, Repository, split_name
 
 DESCRIPTION = "Визуализатор графа зависимостей пакетов Maven"
 DEFAULT_CONFIG = Path("config/default.ini")
 EXIT_OK = 0
 EXIT_CONFIG = 2
+EXIT_DATA = 3
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,16 +39,33 @@ def report_problems(title: str, problems: list[str]) -> None:
         print(f"  - {problem}", file=sys.stderr)
 
 
+def show_direct_dependencies(settings: Settings) -> None:
+    """Печатает прямые зависимости пакета из репозитория Maven."""
+    package = split_name(settings.package, settings.version)
+    repository = Repository(settings.repository)
+    dependencies = repository.direct_dependencies(package)
+    print(f"Прямые зависимости {package}: {len(dependencies)}")
+    for item in dependencies:
+        flags = item.scope + (", optional" if item.optional else "")
+        print(f"  {item.coordinates} ({flags})")
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Читает конфигурацию и выводит параметры в формате ключ-значение."""
+    """Читает конфигурацию и выводит прямые зависимости пакета."""
     args = build_parser().parse_args(argv)
     try:
         settings = load_settings(args.config)
     except ConfigError as error:
         report_problems(f"конфигурация {args.config}", error.problems)
         return EXIT_CONFIG
-    for key, value in settings.items():
-        print(f"{key} = {value}")
+    if settings.test_mode:
+        report_problems("тестовый режим", ["будет поддержан на этапе 3"])
+        return EXIT_CONFIG
+    try:
+        show_direct_dependencies(settings)
+    except MavenError as error:
+        report_problems("получение зависимостей", [str(error)])
+        return EXIT_DATA
     return EXIT_OK
 
 
