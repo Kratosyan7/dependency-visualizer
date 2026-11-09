@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from config import ConfigError, Settings, load_settings
-from graph import Graph, bfs, format_graph
+from graph import Graph, bfs, format_graph, format_reverse, reverse_bfs
 from maven import MavenError, Repository, Resolver, split_name
 from testrepo import TestRepositoryError, load_repository
 
@@ -42,13 +42,15 @@ def report_problems(title: str, problems: list[str]) -> None:
 
 
 def build_test_graph(settings: Settings) -> Graph:
-    """Строит граф по файлу тестового репозитория."""
+    """Строит граф тестового репозитория (прямой или обратный)."""
     packages = load_repository(Path(settings.repository))
     known = set(packages).union(*packages.values())
     if settings.package not in known:
         raise TestRepositoryError(
             f"пакет {settings.package} не описан в {settings.repository}"
         )
+    if settings.reverse:
+        return reverse_bfs(settings.package, packages)
     return bfs(settings.package, lambda name: packages.get(name, []))
 
 
@@ -84,7 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     except (MavenError, TestRepositoryError) as error:
         report_problems("получение зависимостей", [str(error)])
         return EXIT_DATA
-    print("\n".join(format_graph(graph)))
+    formatter = format_reverse if settings.reverse else format_graph
+    print("\n".join(formatter(graph)))
     return EXIT_OK
 
 

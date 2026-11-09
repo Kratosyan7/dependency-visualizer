@@ -69,7 +69,7 @@ class TestValidConfig(ConfigTestCase):
         """Выводит все шесть параметров в виде пар ключ-значение."""
         settings = load_settings(self.write("c.ini", MAVEN_INI))
         items = dict(settings.items())
-        self.assertEqual(len(items), 6)
+        self.assertEqual(len(items), 7)
         self.assertEqual(items["repository.test_mode"], "false")
         self.assertEqual(items["output.ascii_tree"], "true")
 
@@ -174,6 +174,16 @@ class TestValueErrors(ConfigTestCase):
         problems = self.problems(self.make_test_ini(
             image=str(self.root / "dir.png")))
         self.assertIn("каталогом", problems[0])
+
+    def test_reverse_needs_test_mode(self) -> None:
+        """Обратные зависимости только в тестовом режиме."""
+        problems = self.problems(MAVEN_INI + "reverse = true\n")
+        self.assertIn("output.reverse", problems[0])
+
+    def test_reverse_in_test_mode(self) -> None:
+        """В тестовом режиме reverse допускается."""
+        text = self.make_test_ini() + "reverse = on\n"
+        self.assertTrue(load_settings(self.write("c.ini", text)).reverse)
 
     def test_lowercase_test_name(self) -> None:
         """В тестовом режиме имя — большие латинские буквы."""

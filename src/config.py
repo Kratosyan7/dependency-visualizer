@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 SCHEMA = {
     "package": ("name", "version"),
     "repository": ("url", "test_mode"),
-    "output": ("image", "ascii_tree"),
+    "output": ("image", "ascii_tree", "reverse"),
 }
 REQUIRED = (
     ("package", "name"),
@@ -51,6 +51,7 @@ class Settings:
     test_mode: bool
     image: Path
     ascii_tree: bool
+    reverse: bool = False
 
     def items(self) -> list[tuple[str, str]]:
         """Возвращает параметры в виде пар «ключ — значение»."""
@@ -61,6 +62,7 @@ class Settings:
             ("repository.test_mode", show_flag(self.test_mode)),
             ("output.image", str(self.image)),
             ("output.ascii_tree", show_flag(self.ascii_tree)),
+            ("output.reverse", show_flag(self.reverse)),
         ]
 
 
@@ -185,6 +187,17 @@ def check_image(image: str) -> str | None:
     return None
 
 
+def check_reverse(reverse: bool, test_mode: bool) -> str | None:
+    """Обратные зависимости ищутся только в тестовом репозитории."""
+    if reverse and not test_mode:
+        return (
+            "output.reverse: обратные зависимости доступны только в "
+            "тестовом режиме — у репозитория Maven нет индекса пакетов, "
+            "зависящих от данного"
+        )
+    return None
+
+
 def load_settings(path: Path) -> Settings:
     """Читает и проверяет конфигурацию; ошибки — ConfigError."""
     parser = read_ini(path)
@@ -199,12 +212,14 @@ def load_settings(path: Path) -> Settings:
         test_mode=test_mode,
         image=Path(get_text(parser, "output", "image")),
         ascii_tree=get_flag(parser, "output", "ascii_tree", problems),
+        reverse=get_flag(parser, "output", "reverse", problems),
     )
     checks = (
         check_name(settings.package, test_mode),
         check_version(settings.version, test_mode),
         check_repository(settings.repository, test_mode),
         check_image(str(settings.image)),
+        check_reverse(settings.reverse, test_mode),
     )
     problems.extend(problem for problem in checks if problem)
     if problems:

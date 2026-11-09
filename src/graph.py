@@ -57,6 +57,41 @@ def bfs(root: str, neighbours: Callable[[str], list[str]]) -> Graph:
     return graph
 
 
+def invert(edges: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Обращает направление всех рёбер: «зависит от» → «нужен для»."""
+    inverted: dict[str, list[str]] = {}
+    for node, children in edges.items():
+        for child in children:
+            inverted.setdefault(child, []).append(node)
+    return inverted
+
+
+def reverse_bfs(root: str, edges: dict[str, list[str]]) -> Graph:
+    """Граф обратных зависимостей: пакеты, зависящие от root.
+
+    Используется тот же обход bfs, но по обращённым рёбрам всего
+    репозитория.
+    """
+    inverted = invert(edges)
+    return bfs(root, lambda name: inverted.get(name, []))
+
+
+def format_reverse(graph: Graph) -> list[str]:
+    """Текстовое описание графа обратных зависимостей."""
+    dependents = [node for node in graph.edges if node != graph.root]
+    lines = [
+        f"Обратные зависимости {graph.root} (зависящих пакетов: "
+        f"{len(dependents)}): {', '.join(dependents) or '(нет)'}"
+    ]
+    for node, users in graph.edges.items():
+        lines.append(f"  {node} <- {', '.join(users) or '(нет)'}")
+    cycles = cycle_edges(graph)
+    if cycles:
+        lines.append("Циклические зависимости (ребро, замыкающее цикл):")
+        lines.extend(f"  {target} -> {source}" for source, target in cycles)
+    return lines
+
+
 def cycle_edges(graph: Graph) -> list[tuple[str, str]]:
     """Находит обратные рёбра, замыкающие циклы (DFS на явном стеке)."""
     state: dict[str, int] = {}

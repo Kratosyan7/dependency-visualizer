@@ -51,6 +51,13 @@ class TestMain(MainTestCase):
         self.assertEqual(code, EXIT_OK)
         self.assertIn("B -> (нет)", out)
 
+    def test_reverse_mode(self) -> None:
+        """Режим обратных зависимостей."""
+        code, out, _ = self.run_main("A: C\nB: C\nC:\n", "C",
+                                     "reverse = true\n")
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("зависящих пакетов: 2): A, B", out)
+
     def test_unknown_package(self) -> None:
         """Пакет, которого нет в репозитории, — ошибка данных."""
         code, _, err = self.run_main("A: B\n", "Q")

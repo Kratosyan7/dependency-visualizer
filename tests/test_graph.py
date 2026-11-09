@@ -2,9 +2,18 @@
 
 import unittest
 
-from graph import SourceError, bfs, cycle_edges, format_graph
+from graph import (
+    SourceError,
+    bfs,
+    cycle_edges,
+    format_graph,
+    format_reverse,
+    invert,
+    reverse_bfs,
+)
 
 LONG_CHAIN = 5000
+REVERSE_EDGES = {"A": ["B", "C"], "B": ["D"], "C": ["D"], "E": ["A"]}
 
 
 def source(edges: dict[str, list[str]]):
@@ -84,6 +93,32 @@ class TestFormat(unittest.TestCase):
         self.assertIn("  A -> B", lines)
         self.assertIn("  B -> A", lines)
         self.assertTrue(any("сбой" in line for line in lines))
+
+
+class TestReverse(unittest.TestCase):
+    """Обратные зависимости."""
+
+    def test_invert(self) -> None:
+        """Рёбра обращаются с сохранением порядка."""
+        self.assertEqual(invert(REVERSE_EDGES)["D"], ["B", "C"])
+
+    def test_transitive_dependents(self) -> None:
+        """Находит все пакеты, транзитивно зависящие от D."""
+        graph = reverse_bfs("D", REVERSE_EDGES)
+        self.assertEqual(list(graph.edges), ["D", "B", "C", "A", "E"])
+
+    def test_no_dependents(self) -> None:
+        """У корня репозитория нет зависящих пакетов."""
+        graph = reverse_bfs("E", REVERSE_EDGES)
+        self.assertEqual(graph.edges, {"E": []})
+        self.assertIn("(нет)", format_reverse(graph)[0])
+
+    def test_reverse_cycle(self) -> None:
+        """Цикл в обратном графе обрабатывается и выводится."""
+        graph = reverse_bfs("A", {"A": ["B"], "B": ["A"]})
+        lines = format_reverse(graph)
+        self.assertIn("зависящих пакетов: 1", lines[0])
+        self.assertIn("Циклические", "\n".join(lines))
 
 
 if __name__ == "__main__":
