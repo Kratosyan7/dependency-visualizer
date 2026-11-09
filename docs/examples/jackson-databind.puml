@@ -1,0 +1,11 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Monospaced
+top to bottom direction
+title Зависимости com.fasterxml.jackson.core:jackson-databind:2.16.0
+rectangle "com.fasterxml.jackson.core\njackson-databind\n2.16.0" as n0 #LightSkyBlue
+rectangle "com.fasterxml.jackson.core\njackson-annotations\n2.16.0" as n1
+rectangle "com.fasterxml.jackson.core\njackson-core\n2.16.0" as n2
+n0 --> n1
+n0 --> n2
+@enduml

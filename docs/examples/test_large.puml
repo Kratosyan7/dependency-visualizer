@@ -1,0 +1,39 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Monospaced
+top to bottom direction
+title Зависимости APP
+rectangle "APP" as n0 #LightSkyBlue
+rectangle "CORE" as n1
+rectangle "WEB" as n2
+rectangle "CLI" as n3
+rectangle "UTIL" as n4
+rectangle "LOG" as n5
+rectangle "HTTP" as n6
+rectangle "JSON" as n7
+rectangle "ARGS" as n8
+rectangle "FMT" as n9
+rectangle "NET" as n10
+rectangle "X" as n11
+rectangle "Y" as n12
+n0 --> n1
+n0 --> n2
+n0 --> n3
+n1 --> n4
+n1 --> n5
+n2 --> n1
+n2 --> n6
+n2 --> n7
+n3 --> n1
+n3 --> n8
+n4 --> n5
+n5 --> n9
+n6 --> n10
+n6 --> n5
+n7 --> n4
+n8 --> n11
+n8 --> n12
+n9 -[#Red,dashed]-> n5
+n10 --> n4
+n10 -[#Red,dashed]-> n6
+@enduml

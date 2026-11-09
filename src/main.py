@@ -12,6 +12,7 @@ from pathlib import Path
 from config import ConfigError, Settings, load_settings
 from graph import Graph, bfs, format_graph, format_reverse, reverse_bfs
 from maven import MavenError, Repository, Resolver, split_name
+from render import RenderError, ascii_tree, save_png, to_plantuml
 from testrepo import TestRepositoryError, load_repository
 
 DESCRIPTION = "Визуализатор графа зависимостей пакетов Maven"
@@ -19,6 +20,7 @@ DEFAULT_CONFIG = Path("config/default.ini")
 EXIT_OK = 0
 EXIT_CONFIG = 2
 EXIT_DATA = 3
+EXIT_RENDER = 4
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -73,8 +75,30 @@ def build_graph(settings: Settings) -> Graph:
     return build_maven_graph(settings)
 
 
+def visualize(settings: Settings, graph: Graph) -> None:
+    """Сохраняет PlantUML и PNG, при необходимости печатает ASCII-дерево.
+
+    Текст PlantUML записывается рядом с изображением (расширение .puml).
+    """
+    kind = "Обратные зависимости" if settings.reverse else "Зависимости"
+    text = to_plantuml(graph, f"{kind} {graph.root}")
+    image = settings.image
+    puml = image.with_suffix(".puml")
+    try:
+        image.parent.mkdir(parents=True, exist_ok=True)
+        puml.write_text(text, encoding="utf-8")
+    except OSError as error:
+        raise RenderError(f"не удалось записать {puml}: {error}") from error
+    print(f"Текст PlantUML: {puml}")
+    if settings.ascii_tree:
+        print(f"{kind} в виде ASCII-дерева:")
+        print("\n".join(ascii_tree(graph)))
+    save_png(text, image)
+    print(f"Изображение PNG: {image}")
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Читает конфигурацию, строит и выводит граф зависимостей."""
+    """Читает конфигурацию, строит, выводит и визуализирует граф."""
     args = build_parser().parse_args(argv)
     try:
         settings = load_settings(args.config)
@@ -88,6 +112,11 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_DATA
     formatter = format_reverse if settings.reverse else format_graph
     print("\n".join(formatter(graph)))
+    try:
+        visualize(settings, graph)
+    except RenderError as error:
+        report_problems("визуализация", [str(error)])
+        return EXIT_RENDER
     return EXIT_OK
 
 

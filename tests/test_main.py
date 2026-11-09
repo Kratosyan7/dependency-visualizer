@@ -5,18 +5,24 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from main import EXIT_CONFIG, EXIT_DATA, EXIT_OK, main
+from main import EXIT_CONFIG, EXIT_DATA, EXIT_OK, EXIT_RENDER, main
+from render import PNG_SIGNATURE, RenderError
 
 
 class MainTestCase(unittest.TestCase):
     """Запуск main с временной конфигурацией."""
 
     def setUp(self) -> None:
-        """Создаёт временный каталог."""
+        """Создаёт временный каталог и подменяет получение PNG."""
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
+        patcher = mock.patch("render.render_with_server",
+                             return_value=PNG_SIGNATURE)
+        self.server = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def run_main(self, repo: str, package: str, extra: str = "") -> tuple:
         """Запускает main; возвращает код, stdout и stderr."""
@@ -57,6 +63,27 @@ class TestMain(MainTestCase):
                                      "reverse = true\n")
         self.assertEqual(code, EXIT_OK)
         self.assertIn("зависящих пакетов: 2): A, B", out)
+
+    def test_files_and_tree(self) -> None:
+        """Сохраняются PlantUML и PNG, печатается ASCII-дерево."""
+        code, out, _ = self.run_main("A: B\n", "A", "ascii_tree = true\n")
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("└── B", out)
+        self.assertTrue((self.root / "g.puml").is_file())
+        self.assertEqual((self.root / "g.png").read_bytes(), PNG_SIGNATURE)
+
+    def test_tree_disabled(self) -> None:
+        """Без ascii_tree дерево не печатается."""
+        _, out, _ = self.run_main("A: B\n", "A")
+        self.assertNotIn("└──", out)
+
+    def test_render_error(self) -> None:
+        """Ошибка получения PNG — код EXIT_RENDER, PlantUML сохранён."""
+        self.server.side_effect = RenderError("нет сети")
+        code, _, err = self.run_main("A: B\n", "A")
+        self.assertEqual(code, EXIT_RENDER)
+        self.assertIn("нет сети", err)
+        self.assertTrue((self.root / "g.puml").is_file())
 
     def test_unknown_package(self) -> None:
         """Пакет, которого нет в репозитории, — ошибка данных."""
