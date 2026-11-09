@@ -1,0 +1,32 @@
+# Архивы
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+
+# Бинарные файлы и артефакты сборки
+*.exe
+*.dll
+*.so
+*.class
+*.jar
+build/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Кэши тестов и линтеров
+.pytest_cache/
+.ruff_cache/
+
+# Настройки редакторов
+.vscode/
+.idea/
+
+# Результаты запуска (создаются заново при каждом запуске)
+out/
